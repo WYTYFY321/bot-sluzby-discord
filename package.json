@@ -1,15 +1,16 @@
 {
-  "name": "moj-bot-js",
+  "name": "bot-sluzby-discord",
   "version": "1.0.0",
   "description": "",
   "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node main.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "discord.js": "^14.22.1"
+    "discord.js": "^14.15.3",
+    "express": "^4.19.2"
   }
 }
