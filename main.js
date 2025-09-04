@@ -1,4 +1,4 @@
- --- Konfiguracja ---
+// --- Konfiguracja ---
 const TOKEN = process.env.TOKEN;  Token pobierany z Replit Secrets
 const ADMIN_ROLE_IDS = [1359624338415812648, 1253431000101421226, 1253431001070436495];
 const PANEL_CHANNEL_ID = 1412872512060264528;
@@ -250,4 +250,5 @@ app.get('', (req, res) = res.send('Bot jest aktywny!'));
 app.listen(3000, () = console.log('Serwer nasłuchuje na porcie 3000'));
 
  --- Uruchomienie bota ---
+
 client.login(TOKEN);
