@@ -5,6 +5,7 @@ const GUILD_ID = "1202645184735613029"; // Twoje ID serwera
 const ADMIN_ROLE_IDS = ["1359624338415812648", "1253431000101421226", "1253431001070436495"];
 const PANEL_CHANNEL_ID = "1412872512060264528";
 const LOG_CHANNEL_ID = "1412872512060264528";
+const HOURLY_RATE = 750;
 
 // --- Importowanie bibliotek ---
 const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, REST, Routes, SlashCommandBuilder } = require('discord.js');
@@ -159,20 +160,39 @@ client.on('interactionCreate', async interaction => {
             } catch (error) { console.error(error); return interaction.reply({ content: 'Wystąpił błąd przy wysyłaniu panelu.', ephemeral: true }); }
         }
 
-        if (commandName === 'godziny' || commandName === 'ranking') {
-            const type = commandName === 'godziny' ? 'current_seconds' : 'total_seconds';
-            const title = commandName === 'godziny' ? '📊 Ranking Bieżącego Okresu' : '🏆 Ranking Całkowity';
-            const usersWithTime = Object.entries(botData.user_data || {}).filter(([, data]) => data[type] > 0);
-            if (usersWithTime.length === 0) return interaction.reply({ content: "ℹ️ Nikt nie ma zarejestrowanego czasu w tej kategorii.", ephemeral: true });
-            const sortedUsers = usersWithTime.sort(([, a], [, b]) => b[type] - a[type]);
-            const topUsers = sortedUsers.slice(0, 25);
-            let description = "";
-            topUsers.forEach(([userId, data], index) => {
-                const medal = ["🥇", "🥈", "🥉"][index] || `**${index + 1}.**`;
-                description += `${medal} <@${userId}> - \`${formatTimedelta(data[type])}\`\n`;
-            });
-            const embed = new EmbedBuilder().setTitle(title).setDescription(description).setColor("Gold");
-            return interaction.reply({ embeds: [embed] });
+        // Podmień cały ten blok kodu w main.js
+
+if (commandName === 'godziny' || commandName === 'ranking') {
+    const type = commandName === 'godziny' ? 'current_seconds' : 'total_seconds';
+    const title = commandName === 'godziny' ? '📊 Ranking Bieżącego Okresu' : '🏆 Ranking Całkowity';
+    
+    const usersWithTime = Object.entries(botData.user_data || {}).filter(([, data]) => data[type] > 0);
+    if (usersWithTime.length === 0) return interaction.reply({ content: "ℹ️ Nikt nie ma zarejestrowanego czasu w tej kategorii.", ephemeral: true });
+
+    const sortedUsers = usersWithTime.sort(([, a], [, b]) => b[type] - a[type]);
+    const topUsers = sortedUsers.slice(0, 25);
+    
+    let description = "";
+    topUsers.forEach(([userId, data], index) => {
+        const seconds = data[type];
+        let earningsText = ""; // Zmienna na tekst o zarobkach, domyślnie pusta
+
+        // Obliczamy i dodajemy zarobki TYLKO dla komendy /godziny
+        if (commandName === 'godziny') {
+            const fullHours = Math.floor(seconds / 3600);
+            const earnings = fullHours * HOURLY_RATE;
+            // Używamy toLocaleString, aby liczby były czytelniejsze (np. 1,500 zamiast 1500)
+            earningsText = ` **($${earnings.toLocaleString('en-US')})**`;
+        }
+
+        const medal = ["🥇", "🥈", "🥉"][index] || `**${index + 1}.**`;
+        // Dodajemy tekst o zarobkach (jeśli istnieje) na końcu linii
+        description += `${medal} <@${userId}> - \`${formatTimedelta(seconds)}\`${earningsText}\n`;
+    });
+
+    const embed = new EmbedBuilder().setTitle(title).setDescription(description).setColor("Gold");
+    return interaction.reply({ embeds: [embed] });
+}
         }
 
         if (commandName === 'zapisz') {
@@ -307,3 +327,4 @@ app.listen(port, () => console.log(`Serwer nasłuchuje na porcie ${port}`));
 
 // --- Uruchomienie bota ---
 client.login(TOKEN);
+
