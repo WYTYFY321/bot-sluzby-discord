@@ -1,17 +1,55 @@
-const TOKEN = process.env.TOKEN;
+// --- Konfiguracja ---
+const TOKEN = process.env.TOKEN; // Token pobierany z Render Environment lub Replit Secrets
+const CLIENT_ID = "1412111007534284941"; // Twoje ID aplikacji bota
+const GUILD_ID = "1202645184735613029"; // Twoje ID serwera
 const ADMIN_ROLE_IDS = ["1359624338415812648", "1253431000101421226", "1253431001070436495"];
 const PANEL_CHANNEL_ID = "1412872512060264528";
 const LOG_CHANNEL_ID = "1412872512060264528";
 
-const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+// --- Importowanie bibliotek ---
+const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const express = require('express');
 
+// --- Inicjalizacja bota ---
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
     partials: [Partials.Channel]
 });
 
+// --- Automatyczna Rejestracja Komend ---
+const commands = [
+    new SlashCommandBuilder().setName('panel').setDescription('Wysyła panel zarządzania służbą.'),
+    new SlashCommandBuilder().setName('godziny').setDescription('Wyświetla ranking godzin z bieżącego okresu.'),
+    new SlashCommandBuilder().setName('ranking').setDescription('Wyświetla ranking całkowitych godzin wszech czasów.'),
+    new SlashCommandBuilder().setName('zapisz').setDescription('Zapisuje godziny bieżące do rankingu całkowitego.'),
+    new SlashCommandBuilder().setName('resetujgodziny').setDescription('Resetuje godziny bieżące wybranego użytkownika.')
+        .addUserOption(option => option.setName('uzytkownik').setDescription('Osoba do zresetowania.').setRequired(true)),
+    new SlashCommandBuilder().setName('resetujwszystkich').setDescription('Resetuje godziny bieżące WSZYSTKICH użytkowników.'),
+    new SlashCommandBuilder().setName('odejmijczas').setDescription('Odejmuje czas z rankingu bieżącego wybranemu użytkownikowi.')
+        .addUserOption(option => option.setName('uzytkownik').setDescription('Funkcjonariusz, któremu chcesz odjąć czas.').setRequired(true))
+        .addIntegerOption(option => option.setName('godziny').setDescription('Liczba godzin do odjęcia.').setMinValue(0))
+        .addIntegerOption(option => option.setName('minuty').setDescription('Liczba minut do odjęcia.').setMinValue(0))
+]
+.map(command => command.toJSON());
+
+const rest = new REST({ version: '10' }).setToken(TOKEN);
+
+(async () => {
+    try {
+        console.log('Rozpoczęto odświeżanie komend dla serwera.');
+        await rest.put(
+            Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+            { body: commands },
+        );
+        console.log('✅ Pomyślnie przeładowano komendy dla serwera.');
+    } catch (error) {
+        console.error("Błąd podczas rejestracji komend:", error);
+    }
+})();
+
+// --- Zarządzanie danymi ---
 const DATA_FILE = path.join(__dirname, 'duty_data_storage.json');
 let botData = { active_sessions: {}, user_data: {} };
 
@@ -161,35 +199,34 @@ client.on('interactionCreate', async interaction => {
             saveData();
             return interaction.reply({ content: `✅ Zresetowano czas bieżący wszystkich użytkowników.`, ephemeral: true });
         }
-    // Wklej ten fragment w main.js, zaraz po bloku dla komendy /resetujwszystkich
-
-if (commandName === 'odejmijczas') {
-    const userToModify = options.getUser('uzytkownik');
-    const hoursToSubtract = options.getInteger('godziny') || 0;
-    const minutesToSubtract = options.getInteger('minuty') || 0;
-    const userId = userToModify.id;
-
-    if (hoursToSubtract === 0 && minutesToSubtract === 0) {
-        return interaction.reply({ content: '❌ Musisz podać przynajmniej jedną wartość (godziny lub minuty), którą chcesz odjąć.', ephemeral: true });
-    }
-
-    ensureUserExists(userId);
-
-    const totalSecondsToSubtract = (hoursToSubtract * 3600) + (minutesToSubtract * 60);
-    let currentUserSeconds = botData.user_data[userId].current_seconds || 0;
-
-    currentUserSeconds -= totalSecondsToSubtract;
-
-    if (currentUserSeconds < 0) {
-        currentUserSeconds = 0;
-    }
-
-    botData.user_data[userId].current_seconds = currentUserSeconds;
-    saveData();
-
-    const newTimeFormatted = formatTimedelta(currentUserSeconds);
-    return interaction.reply({ content: `✅ Pomyślnie odjęto **${hoursToSubtract}h i ${minutesToSubtract}m** z czasu bieżącego użytkownika ${userToModify}.\nNowy czas w tym okresie: **${newTimeFormatted}**`, ephemeral: true });
-}
+        
+        if (commandName === 'odejmijczas') {
+            const userToModify = options.getUser('uzytkownik');
+            const hoursToSubtract = options.getInteger('godziny') || 0;
+            const minutesToSubtract = options.getInteger('minuty') || 0;
+            const userId = userToModify.id;
+        
+            if (hoursToSubtract === 0 && minutesToSubtract === 0) {
+                return interaction.reply({ content: '❌ Musisz podać przynajmniej jedną wartość (godziny lub minuty), którą chcesz odjąć.', ephemeral: true });
+            }
+        
+            ensureUserExists(userId);
+        
+            const totalSecondsToSubtract = (hoursToSubtract * 3600) + (minutesToSubtract * 60);
+            let currentUserSeconds = botData.user_data[userId].current_seconds || 0;
+        
+            currentUserSeconds -= totalSecondsToSubtract;
+        
+            if (currentUserSeconds < 0) {
+                currentUserSeconds = 0;
+            }
+        
+            botData.user_data[userId].current_seconds = currentUserSeconds;
+            saveData();
+        
+            const newTimeFormatted = formatTimedelta(currentUserSeconds);
+            return interaction.reply({ content: `✅ Pomyślnie odjęto **${hoursToSubtract}h i ${minutesToSubtract}m** z czasu bieżącego użytkownika ${userToModify}.\nNowy czas w tym okresie: **${newTimeFormatted}**`, ephemeral: true });
+        }
     }
     
     else if (interaction.isButton()) {
@@ -262,10 +299,11 @@ if (commandName === 'odejmijczas') {
     }
 });
 
-const express = require('express');
+// --- Serwer WWW ---
 const app = express();
+const port = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Bot jest aktywny!'));
-app.listen(3000, () => console.log('Serwer nasłuchuje na porcie 3000'));
+app.listen(port, () => console.log(`Serwer nasłuchuje na porcie ${port}`));
 
+// --- Uruchomienie bota ---
 client.login(TOKEN);
-
