@@ -100,7 +100,7 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, user, member, options } = interaction;
-        const adminCommands = ['panel', 'resetujgodziny', 'resetujwszystkich', 'zapisz'];
+        const adminCommands = ['panel', 'resetujgodziny', 'resetujwszystkich', 'zapisz', 'odejmijczas'];
         if (adminCommands.includes(commandName)) {
             if (!member.roles.cache.some(role => ADMIN_ROLE_IDS.includes(role.id))) {
                 return interaction.reply({ content: '❌ Nie masz uprawnień do użycia tej komendy.', ephemeral: true });
@@ -161,6 +161,35 @@ client.on('interactionCreate', async interaction => {
             saveData();
             return interaction.reply({ content: `✅ Zresetowano czas bieżący wszystkich użytkowników.`, ephemeral: true });
         }
+    // Wklej ten fragment w main.js, zaraz po bloku dla komendy /resetujwszystkich
+
+if (commandName === 'odejmijczas') {
+    const userToModify = options.getUser('uzytkownik');
+    const hoursToSubtract = options.getInteger('godziny') || 0;
+    const minutesToSubtract = options.getInteger('minuty') || 0;
+    const userId = userToModify.id;
+
+    if (hoursToSubtract === 0 && minutesToSubtract === 0) {
+        return interaction.reply({ content: '❌ Musisz podać przynajmniej jedną wartość (godziny lub minuty), którą chcesz odjąć.', ephemeral: true });
+    }
+
+    ensureUserExists(userId);
+
+    const totalSecondsToSubtract = (hoursToSubtract * 3600) + (minutesToSubtract * 60);
+    let currentUserSeconds = botData.user_data[userId].current_seconds || 0;
+
+    currentUserSeconds -= totalSecondsToSubtract;
+
+    if (currentUserSeconds < 0) {
+        currentUserSeconds = 0;
+    }
+
+    botData.user_data[userId].current_seconds = currentUserSeconds;
+    saveData();
+
+    const newTimeFormatted = formatTimedelta(currentUserSeconds);
+    return interaction.reply({ content: `✅ Pomyślnie odjęto **${hoursToSubtract}h i ${minutesToSubtract}m** z czasu bieżącego użytkownika ${userToModify}.\nNowy czas w tym okresie: **${newTimeFormatted}**`, ephemeral: true });
+}
     }
     
     else if (interaction.isButton()) {
@@ -239,3 +268,4 @@ app.get('/', (req, res) => res.send('Bot jest aktywny!'));
 app.listen(3000, () => console.log('Serwer nasłuchuje na porcie 3000'));
 
 client.login(TOKEN);
+
