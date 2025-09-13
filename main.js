@@ -1,7 +1,7 @@
 // --- Konfiguracja ---
-const TOKEN = process.env.TOKEN; // Token pobierany z Render Environment lub Replit Secrets
+const TOKEN = process.env.TOKEN;
 const CLIENT_ID = "1412111007534284941"; // Twoje ID aplikacji bota
-const GUILD_ID = "1202645184735613029"; // Twoje ID serwera
+const GUILD_ID = "1202645184735613029";
 const ADMIN_ROLE_IDS = ["1359624338415812648", "1253431000101421226", "1253431001070436495"];
 const PANEL_CHANNEL_ID = "1412872512060264528";
 const LOG_CHANNEL_ID = "1412872512060264528";
@@ -32,10 +32,10 @@ const commands = [
         .addUserOption(option => option.setName('uzytkownik').setDescription('Funkcjonariusz, któremu chcesz odjąć czas.').setRequired(true))
         .addIntegerOption(option => option.setName('godziny').setDescription('Liczba godzin do odjęcia.').setMinValue(0))
         .addIntegerOption(option => option.setName('minuty').setDescription('Liczba minut do odjęcia.').setMinValue(0)),
-    new SlashCommandBuilder().setName('renta').setDescription('Generuje i wysyła wiadomości z wypłatami dla funkcjonariuszy.')
+    new SlashCommandBuilder().setName('renta').setDescription('Generuje podsumowania i listę komend do wypłat.')
         .addChannelOption(option => 
             option.setName('kanal')
-                .setDescription('Kanał, na który mają być wysłane wypłaty.')
+                .setDescription('Kanał, na który mają być wysłane podsumowania wypłat.')
                 .setRequired(true)),
     new SlashCommandBuilder().setName('dodajczas').setDescription('Dodaje czas do rankingu bieżącego wybranemu użytkownikowi.')
         .addUserOption(option => 
@@ -57,6 +57,10 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
     try {
+        if (!TOKEN) {
+            console.log('TOKEN bota nie jest ustawiony. Rejestracja komend pominięta.');
+            return;
+        }
         console.log('Rozpoczęto odświeżanie komend dla serwera.');
         await rest.put(
             Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
@@ -288,7 +292,7 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ content: 'ℹ️ Żaden funkcjonariusz nie przepracował pełnej godziny w tym okresie. Brak wypłat do wygenerowania.', ephemeral: true });
             }
 
-            await interaction.reply({ content: `✅ Rozpoczęto generowanie i wysyłanie ${usersToPay.length} wypłat na kanale ${targetChannel}.`, ephemeral: true });
+            await interaction.reply({ content: `✅ Rozpoczęto wysyłanie ${usersToPay.length} podsumowań wypłat na kanale ${targetChannel}.`, ephemeral: true });
 
             let commandList = "```\n";
 
@@ -297,22 +301,18 @@ client.on('interactionCreate', async interaction => {
                 const earnings = fullHours * HOURLY_RATE;
                 try {
                     const member = await interaction.guild.members.fetch(user.userId);
-                    const payoutMessage = `
-**Kto wypłaca:** ${adminUser}
-**Komu wypłaca:** ${member.user}
-**Ilość pełnych godzin:** \`${fullHours}\`
-**Suma pieniędzy:** \`$${earnings.toLocaleString('en-US')}\`
-**Data:** <t:${Math.floor(payoutDate.getTime() / 1000)}:D>
-                    `;
-                    await targetChannel.send(payoutMessage.trim());
+                    
+                    const payoutMessage = `**Kto wypłaca:** ${adminUser}\n**Komu wypłaca:** ${member.user}\n**Ilość pełnych godzin:** \`${fullHours}\`\n**Suma pieniędzy:** \`$${earnings.toLocaleString('en-US')}\`\n**Data:** <t:${Math.floor(payoutDate.getTime() / 1000)}:D>`;
+                    await targetChannel.send(payoutMessage);
+
                     commandList += `!eco add ${member.user} ${earnings}\n`;
                 } catch (err) {
-                    console.error(`Nie udało się wysłać wypłaty dla ID ${user.userId}.`, err);
-                    await targetChannel.send(`⚠️ Wystąpił błąd podczas próby wypłaty dla użytkownika o ID \`${user.userId}\`.`);
+                    console.error(`Nie udało się przetworzyć wypłaty dla ID ${user.userId}.`, err);
                 }
             }
-
+            
             commandList += "```";
+            
             const adminEmbed = new EmbedBuilder()
                 .setTitle("📋 Lista komend do wypłat")
                 .setDescription(`Poniżej znajduje się lista komend do ręcznego przekazania wypłat. Skopiuj całą wiadomość i wklej na kanale, gdzie działa bot ekonomiczny.\n\n${commandList}`)
