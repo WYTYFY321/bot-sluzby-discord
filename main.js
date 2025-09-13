@@ -1,7 +1,7 @@
 // --- Konfiguracja ---
-const TOKEN = process.env.TOKEN; // Token pobierany z Render/Replit Secrets
+const TOKEN = process.env.TOKEN; // Token pobierany z Render Environment lub Replit Secrets
 const CLIENT_ID = "1412111007534284941"; // Twoje ID aplikacji bota
-const GUILD_ID = "1202645184735613029";
+const GUILD_ID = "1202645184735613029"; // Twoje ID serwera
 const ADMIN_ROLE_IDS = ["1359624338415812648", "1253431000101421226", "1253431001070436495"];
 const PANEL_CHANNEL_ID = "1412872512060264528";
 const LOG_CHANNEL_ID = "1412872512060264528";
@@ -36,7 +36,20 @@ const commands = [
         .addChannelOption(option => 
             option.setName('kanal')
                 .setDescription('Kanał, na który mają być wysłane wypłaty.')
+                .setRequired(true)),
+    new SlashCommandBuilder().setName('dodajczas').setDescription('Dodaje czas do rankingu bieżącego wybranemu użytkownikowi.')
+        .addUserOption(option => 
+            option.setName('uzytkownik')
+                .setDescription('Funkcjonariusz, któremu chcesz dodać czas.')
                 .setRequired(true))
+        .addIntegerOption(option =>
+            option.setName('godziny')
+                .setDescription('Liczba godzin do dodania.')
+                .setMinValue(0))
+        .addIntegerOption(option =>
+            option.setName('minuty')
+                .setDescription('Liczba minut do dodania.')
+                .setMinValue(0))
 ]
 .map(command => command.toJSON());
 
@@ -144,7 +157,7 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, user, member, options } = interaction;
-        const adminCommands = ['panel', 'resetujgodziny', 'resetujwszystkich', 'zapisz', 'odejmijczas', 'renta'];
+        const adminCommands = ['panel', 'resetujgodziny', 'resetujwszystkich', 'zapisz', 'odejmijczas', 'renta', 'dodajczas'];
         if (adminCommands.includes(commandName)) {
             if (!member.roles.cache.some(role => ADMIN_ROLE_IDS.includes(role.id))) {
                 return interaction.reply({ content: '❌ Nie masz uprawnień do użycia tej komendy.', ephemeral: true });
@@ -240,11 +253,33 @@ client.on('interactionCreate', async interaction => {
             const newTimeFormatted = formatTimedelta(currentUserSeconds);
             return interaction.reply({ content: `✅ Pomyślnie odjęto **${hoursToSubtract}h i ${minutesToSubtract}m** z czasu bieżącego użytkownika ${userToModify}.\nNowy czas w tym okresie: **${newTimeFormatted}**`, ephemeral: true });
         }
+
+        if (commandName === 'dodajczas') {
+            const userToModify = options.getUser('uzytkownik');
+            const hoursToAdd = options.getInteger('godziny') || 0;
+            const minutesToAdd = options.getInteger('minuty') || 0;
+            const userId = userToModify.id;
+
+            if (hoursToAdd === 0 && minutesToAdd === 0) {
+                return interaction.reply({ content: '❌ Musisz podać przynajmniej jedną wartość (godziny lub minuty), którą chcesz dodać.', ephemeral: true });
+            }
+
+            ensureUserExists(userId);
+
+            const totalSecondsToAdd = (hoursToAdd * 3600) + (minutesToAdd * 60);
+            
+            botData.user_data[userId].current_seconds += totalSecondsToAdd;
+            saveData();
+
+            const newTimeFormatted = formatTimedelta(botData.user_data[userId].current_seconds);
+            return interaction.reply({ content: `✅ Pomyślnie dodano **${hoursToAdd}h i ${minutesToAdd}m** do czasu bieżącego użytkownika ${userToModify}.\nNowy czas w tym okresie: **${newTimeFormatted}**`, ephemeral: true });
+        }
         
         if (commandName === 'renta') {
             const targetChannel = options.getChannel('kanal');
             const adminUser = interaction.user;
             const payoutDate = new Date();
+            
             const usersToPay = Object.entries(botData.user_data || {})
                 .map(([userId, data]) => ({ userId, ...data }))
                 .filter(user => user.current_seconds >= 3600);
@@ -254,6 +289,8 @@ client.on('interactionCreate', async interaction => {
             }
 
             await interaction.reply({ content: `✅ Rozpoczęto generowanie i wysyłanie ${usersToPay.length} wypłat na kanale ${targetChannel}.`, ephemeral: true });
+
+            let commandList = "```\n";
 
             for (const user of usersToPay) {
                 const fullHours = Math.floor(user.current_seconds / 3600);
@@ -268,13 +305,21 @@ client.on('interactionCreate', async interaction => {
 **Data:** <t:${Math.floor(payoutDate.getTime() / 1000)}:D>
                     `;
                     await targetChannel.send(payoutMessage.trim());
-                    const economyCommand = `!eco add ${member.user} ${earnings}`;
-                    await targetChannel.send(economyCommand);
+                    commandList += `!eco add ${member.user} ${earnings}\n`;
                 } catch (err) {
                     console.error(`Nie udało się wysłać wypłaty dla ID ${user.userId}.`, err);
                     await targetChannel.send(`⚠️ Wystąpił błąd podczas próby wypłaty dla użytkownika o ID \`${user.userId}\`.`);
                 }
             }
+
+            commandList += "```";
+            const adminEmbed = new EmbedBuilder()
+                .setTitle("📋 Lista komend do wypłat")
+                .setDescription(`Poniżej znajduje się lista komend do ręcznego przekazania wypłat. Skopiuj całą wiadomość i wklej na kanale, gdzie działa bot ekonomiczny.\n\n${commandList}`)
+                .setColor("Blue")
+                .setFooter({ text: `Wygenerowano dla ${adminUser.username}` });
+            
+            await interaction.followUp({ embeds: [adminEmbed], ephemeral: true });
         }
     }
     
@@ -356,6 +401,3 @@ app.listen(port, () => console.log(`Serwer nasłuchuje na porcie ${port}`));
 
 // --- Uruchomienie bota ---
 client.login(TOKEN);
-// --- Uruchomienie bota ---
-client.login(TOKEN);
-
