@@ -1,5 +1,5 @@
 // --- Konfiguracja ---
-const TOKEN = process.env.TOKEN;
+const TOKEN = process.env.TOKEN; // Token pobierany z Render/Replit Secrets
 const CLIENT_ID = "1412111007534284941"; // Twoje ID aplikacji bota
 const GUILD_ID = "1202645184735613029";
 const ADMIN_ROLE_IDS = ["1359624338415812648", "1253431000101421226", "1253431001070436495"];
@@ -31,7 +31,12 @@ const commands = [
     new SlashCommandBuilder().setName('odejmijczas').setDescription('Odejmuje czas z rankingu bieżącego wybranemu użytkownikowi.')
         .addUserOption(option => option.setName('uzytkownik').setDescription('Funkcjonariusz, któremu chcesz odjąć czas.').setRequired(true))
         .addIntegerOption(option => option.setName('godziny').setDescription('Liczba godzin do odjęcia.').setMinValue(0))
-        .addIntegerOption(option => option.setName('minuty').setDescription('Liczba minut do odjęcia.').setMinValue(0))
+        .addIntegerOption(option => option.setName('minuty').setDescription('Liczba minut do odjęcia.').setMinValue(0)),
+    new SlashCommandBuilder().setName('renta').setDescription('Generuje i wysyła wiadomości z wypłatami dla funkcjonariuszy.')
+        .addChannelOption(option => 
+            option.setName('kanal')
+                .setDescription('Kanał, na który mają być wysłane wypłaty.')
+                .setRequired(true))
 ]
 .map(command => command.toJSON());
 
@@ -139,7 +144,7 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, user, member, options } = interaction;
-        const adminCommands = ['panel', 'resetujgodziny', 'resetujwszystkich', 'zapisz', 'odejmijczas'];
+        const adminCommands = ['panel', 'resetujgodziny', 'resetujwszystkich', 'zapisz', 'odejmijczas', 'renta'];
         if (adminCommands.includes(commandName)) {
             if (!member.roles.cache.some(role => ADMIN_ROLE_IDS.includes(role.id))) {
                 return interaction.reply({ content: '❌ Nie masz uprawnień do użycia tej komendy.', ephemeral: true });
@@ -235,6 +240,42 @@ client.on('interactionCreate', async interaction => {
             const newTimeFormatted = formatTimedelta(currentUserSeconds);
             return interaction.reply({ content: `✅ Pomyślnie odjęto **${hoursToSubtract}h i ${minutesToSubtract}m** z czasu bieżącego użytkownika ${userToModify}.\nNowy czas w tym okresie: **${newTimeFormatted}**`, ephemeral: true });
         }
+        
+        if (commandName === 'renta') {
+            const targetChannel = options.getChannel('kanal');
+            const adminUser = interaction.user;
+            const payoutDate = new Date();
+            const usersToPay = Object.entries(botData.user_data || {})
+                .map(([userId, data]) => ({ userId, ...data }))
+                .filter(user => user.current_seconds >= 3600);
+
+            if (usersToPay.length === 0) {
+                return interaction.reply({ content: 'ℹ️ Żaden funkcjonariusz nie przepracował pełnej godziny w tym okresie. Brak wypłat do wygenerowania.', ephemeral: true });
+            }
+
+            await interaction.reply({ content: `✅ Rozpoczęto generowanie i wysyłanie ${usersToPay.length} wypłat na kanale ${targetChannel}.`, ephemeral: true });
+
+            for (const user of usersToPay) {
+                const fullHours = Math.floor(user.current_seconds / 3600);
+                const earnings = fullHours * HOURLY_RATE;
+                try {
+                    const member = await interaction.guild.members.fetch(user.userId);
+                    const payoutMessage = `
+**Kto wypłaca:** ${adminUser}
+**Komu wypłaca:** ${member.user}
+**Ilość pełnych godzin:** \`${fullHours}\`
+**Suma pieniędzy:** \`$${earnings.toLocaleString('en-US')}\`
+**Data:** <t:${Math.floor(payoutDate.getTime() / 1000)}:D>
+                    `;
+                    await targetChannel.send(payoutMessage.trim());
+                    const economyCommand = `!eco add ${member.user} ${earnings}`;
+                    await targetChannel.send(economyCommand);
+                } catch (err) {
+                    console.error(`Nie udało się wysłać wypłaty dla ID ${user.userId}.`, err);
+                    await targetChannel.send(`⚠️ Wystąpił błąd podczas próby wypłaty dla użytkownika o ID \`${user.userId}\`.`);
+                }
+            }
+        }
     }
     
     else if (interaction.isButton()) {
@@ -315,3 +356,6 @@ app.listen(port, () => console.log(`Serwer nasłuchuje na porcie ${port}`));
 
 // --- Uruchomienie bota ---
 client.login(TOKEN);
+// --- Uruchomienie bota ---
+client.login(TOKEN);
+
