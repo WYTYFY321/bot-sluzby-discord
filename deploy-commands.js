@@ -6,6 +6,8 @@ const CLIENT_ID = "1412111007534284941"; // Musisz zdobyć to ID samemu
 const GUILD_ID = "1202645184735613029"; // Twoje ID serwera
 
 // Definicja komend
+// Skopiuj i podmień całą listę 'commands' w pliku deploy-commands.js
+
 const commands = [
     new SlashCommandBuilder().setName('panel').setDescription('Wysyła panel zarządzania służbą.'),
     new SlashCommandBuilder().setName('godziny').setDescription('Wyświetla ranking godzin z bieżącego okresu.'),
@@ -13,7 +15,22 @@ const commands = [
     new SlashCommandBuilder().setName('zapisz').setDescription('Zapisuje godziny bieżące do rankingu całkowitego.'),
     new SlashCommandBuilder().setName('resetujgodziny').setDescription('Resetuje godziny bieżące wybranego użytkownika.')
         .addUserOption(option => option.setName('uzytkownik').setDescription('Osoba do zresetowania.').setRequired(true)),
-    new SlashCommandBuilder().setName('resetujwszystkich').setDescription('Resetuje godziny bieżące WSZYSTKICH użytkowników.')
+    new SlashCommandBuilder().setName('resetujwszystkich').setDescription('Resetuje godziny bieżące WSZYSTKICH użytkowników.'),
+    
+    // NOWA KOMENDA DODANA PONIŻEJ:
+    new SlashCommandBuilder().setName('odejmijczas').setDescription('Odejmuje czas z rankingu bieżącego wybranemu użytkownikowi.')
+        .addUserOption(option => 
+            option.setName('uzytkownik')
+                .setDescription('Funkcjonariusz, któremu chcesz odjąć czas.')
+                .setRequired(true))
+        .addIntegerOption(option =>
+            option.setName('godziny')
+                .setDescription('Liczba godzin do odjęcia.')
+                .setMinValue(0))
+        .addIntegerOption(option =>
+            option.setName('minuty')
+                .setDescription('Liczba minut do odjęcia.')
+                .setMinValue(0))
 ]
 .map(command => command.toJSON());
 
@@ -30,4 +47,5 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
     } catch (error) {
         console.error(error);
     }
+
 })();
